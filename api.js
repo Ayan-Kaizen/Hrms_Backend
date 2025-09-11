@@ -2915,5 +2915,33 @@ router.get('/employee/activity-logs/export', (req, res) => {
   });
 });
 
+// Add this to your api.js file
+router.get('/test-connection', (req, res) => {
+  db.getConnection((err, connection) => {
+    if (err) {
+      return res.status(500).json({ 
+        error: 'Database connection failed', 
+        details: err.message 
+      });
+    }
+    
+    connection.query('SELECT 1 as test', (error, results) => {
+      connection.release();
+      
+      if (error) {
+        return res.status(500).json({ 
+          error: 'Query failed', 
+          details: error.message 
+        });
+      }
+      
+      res.json({ 
+        message: 'Database connected successfully!', 
+        data: results 
+      });
+    });
+  });
+});
+
   return router;
 };
