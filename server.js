@@ -34,18 +34,34 @@ app.use('/uploads', express.static(uploadDir));
 // MySQL Database Connection with Azure SSL Certificate
 const dbConfig = {
   host: process.env.DB_HOST,        
-  user: process.env.DB_USER + '@hrms-server', // ✅ FIXED: Azure requires username@servername format  
-  password: process.env.DB_PASSWORD,   // ✅ FIXED: Changed from WORD to DB_PASSWORD
+  user: process.env.DB_USER,       
+  password: process.env.WORD,   
   database: process.env.DB_NAME,   
   port: 3306,
   ssl: {
     rejectUnauthorized: true,
-    ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt.pem')) // ✅ FIXED: Changed to .pem extension
+     ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt.pem')) // REQUIRED for Azure MySQL
   },
   connectTimeout: 60000,
-  // Removed acquireTimeout as it's not valid for createPool
+  acquireTimeout: 60000,
+  // Azure MySQL specific flags
   flags: ['--ssl-mode=REQUIRED']
 };
+
+
+// const dbConfig = {
+//   host: "hrms-server.mysql.database.azure.com", // Hardcoded for testing
+//   user: "hrmsadmin@hrms-server", // Note: Azure requires username@servername format
+//   password: "Kaizen@1234", 
+//   database: "hrmsdb",
+//   port: 3306,
+//   ssl: {
+//     rejectUnauthorized: true,
+//     ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt'))
+//   },
+//   flags: ['--ssl-mode=REQUIRED']
+// };
+
 
 console.log('🔧 Database Config:', {
   host: dbConfig.host,
@@ -66,16 +82,8 @@ db.getConnection((err, connection) => {
     
     // Specific SSL error handling
     if (err.code === 'HANDSHAKE_SSL_ERROR' || err.message.includes('SSL')) {
-      console.error('🔐 SSL ERROR: Make sure DigiCertGlobalRootCA.crt.pem file exists');
-      console.error('💡 Download from: https://cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem');
-      
-      // Check if certificate file exists
-      const certPath = path.join(__dirname, 'DigiCertGlobalRootCA.crt.pem');
-      if (!fs.existsSync(certPath)) {
-        console.error('❌ Certificate file not found at:', certPath);
-      } else {
-        console.error('✅ Certificate file found, but SSL handshake failed');
-      }
+      console.error('🔐 SSL ERROR: Azure MySQL requires DigiCertGlobalRootCA.crt certificate');
+      console.error('💡 Download from: https://cacerts.digicert.com/DigiCertGlobalRootCA.crt');
     }
     return;
   }
@@ -85,31 +93,7 @@ db.getConnection((err, connection) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  db.getConnection((err, connection) => {
-    if (err) {
-      return res.status(500).json({ 
-        status: 'ERROR', 
-        message: 'Database connection failed',
-        error: err.message 
-      });
-    }
-    
-    connection.ping((pingErr) => {
-      connection.release();
-      if (pingErr) {
-        return res.status(500).json({ 
-          status: 'ERROR', 
-          message: 'Database ping failed',
-          error: pingErr.message 
-        });
-      }
-      res.json({ 
-        status: 'OK', 
-        message: 'Server and database are running',
-        timestamp: new Date().toISOString()
-      });
-    });
-  });
+  res.json({ status: 'OK', message: 'Server is running' });
 });
 
 // API routes
@@ -119,19 +103,6 @@ app.use('/api', apiRoutes);
 // Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-});
-
-// Handle graceful shutdown
-process.on('SIGINT', () => {
-  console.log('🛑 Shutting down server gracefully...');
-  db.end((err) => {
-    if (err) {
-      console.error('Error closing database pool:', err);
-    } else {
-      console.log('✅ Database pool closed');
-    }
-    process.exit(0);
-  });
 });
 
 
