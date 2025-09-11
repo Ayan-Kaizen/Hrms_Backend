@@ -1,9 +1,9 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "db.js",
+  "main": "server.js", 
   "scripts": {
-    "test":"echo \"No tests configured\" && exit 0",
+    "test": "echo \"No tests configured\" && exit 0",
     "start": "node server.js"
   },
   "keywords": [],
