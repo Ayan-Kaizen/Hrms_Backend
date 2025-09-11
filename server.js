@@ -34,27 +34,20 @@ app.use('/uploads', express.static(uploadDir));
 // MySQL Database Connection
 
 
-// const dbConfig = {
-//   host: process.env.DB_HOST,        
-//   user: process.env.DB_USER,       
-//   password: process.env.DB_PASS,   
-//   database: process.env.DB_NAME,   
-//   port: 3306,
-//   ssl: {
-//     rejectUnauthorized: false
-//   },
-//   connectionLimit: 10,
-//   connectTimeout: 60000,
-//   acquireTimeout: 60000
-// };
 const dbConfig = {
-  host: 'hrms-server.mysql.database.azure.com',        
-  user: 'hrmsadmin@hrms-server',       
-  password: 'Kaizen@1234',   
-  database: 'hrmsdb',   
+  host: process.env.DB_HOST,        
+  user: process.env.DB_USER,       
+  password: process.env.DB_PASS,   
+  database: process.env.DB_NAME,   
   port: 3306,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: false
+  },
+  connectionLimit: 10,
+  connectTimeout: 60000,
+  acquireTimeout: 60000
 };
+
 
 console.log('🔧 Database Config:', {
   host: dbConfig.host,
