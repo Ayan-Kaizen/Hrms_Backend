@@ -1,17 +1,21 @@
+// test-db.js
+require('dotenv').config();
 const mysql = require('mysql2');
 
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '000000',
-  database: 'hrms',
+const connection = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: 3306,
+  ssl: { rejectUnauthorized: true }
 });
 
-db.connect((err) => {
+connection.connect((err) => {
   if (err) {
-    console.error('❌ DB connection failed:', err.message);
-    return;
+    console.error('Connection failed:', err);
+    process.exit(1);
   }
-  console.log('✅ DB connected successfully!');
-  db.end();
+  console.log('Connected successfully!');
+  connection.end();
 });

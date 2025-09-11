@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 8080; // Changed to 8080 for Azure
+const PORT = process.env.PORT || 8080;
 
 // Debug environment variables
 console.log('🔍 Environment Variables Check:');
@@ -31,9 +31,7 @@ if (!fs.existsSync(uploadDir)) {
 // Serve static files
 app.use('/uploads', express.static(uploadDir));
 
-// MySQL Database Connection
-
-
+// MySQL Database Connection with proper Azure SSL configuration
 const dbConfig = {
   host: process.env.DB_HOST,        
   user: process.env.DB_USER,       
@@ -41,13 +39,15 @@ const dbConfig = {
   database: process.env.DB_NAME,   
   port: 3306,
   ssl: {
-    rejectUnauthorized: false
+    rejectUnauthorized: true,
+    minVersion: 'TLSv1.2'
   },
-  connectionLimit: 10,
   connectTimeout: 60000,
-  acquireTimeout: 60000
+  acquireTimeout: 60000,
+  timeout: 60000,
+  // Azure MySQL requires this flag for SSL
+  flags: ['--ssl-mode=REQUIRED']
 };
-
 
 console.log('🔧 Database Config:', {
   host: dbConfig.host,
@@ -58,27 +58,94 @@ console.log('🔧 Database Config:', {
 
 const db = mysql.createPool(dbConfig);
 
-// Test the connection
+// Enhanced connection test with better error handling
 db.getConnection((err, connection) => {
   if (err) {
-    console.error('❌ Database connection failed:', err.message);
-    console.log('📝 Check your Azure environment variables');
+    console.error('❌ Database connection failed:');
+    console.error('Error code:', err.code);
+    console.error('Error message:', err.message);
+    
+    if (err.code === 'HANDSHAKE_SSL_ERROR') {
+      console.error('🔐 SSL HANDSHAKE FAILED - Azure MySQL requires proper SSL configuration');
+    }
+    
+    // Don't exit the process, just log the error
+    // The app might still start and try to reconnect later
     return;
   }
+  
   console.log('✅ Connected to Azure MySQL database');
-  connection.release();
+  
+  // Test a simple query
+  connection.query('SELECT 1 + 1 AS solution', (error, results) => {
+    if (error) {
+      console.error('❌ Query test failed:', error.message);
+    } else {
+      console.log('✅ Database query test successful:', results[0].solution);
+    }
+    connection.release();
+  });
 });
 
-// Health check endpoint
+// Enhanced health check endpoint with database status
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+  db.getConnection((err, connection) => {
+    if (err) {
+      return res.status(503).json({ 
+        status: 'ERROR', 
+        message: 'Database connection failed',
+        error: err.message 
+      });
+    }
+    
+    connection.query('SELECT 1 AS test', (error) => {
+      connection.release();
+      
+      if (error) {
+        return res.status(503).json({ 
+          status: 'ERROR', 
+          message: 'Database query failed',
+          error: error.message 
+        });
+      }
+      
+      res.json({ 
+        status: 'OK', 
+        message: 'Server and database are running',
+        timestamp: new Date().toISOString()
+      });
+    });
+  });
 });
 
 // API routes
 const apiRoutes = require('./api')(db); 
 app.use('/api', apiRoutes);
 
+// Graceful shutdown handling
+process.on('SIGINT', () => {
+  console.log('🛑 Shutting down gracefully...');
+  db.end(() => {
+    console.log('✅ Database pool closed');
+    process.exit(0);
+  });
+});
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err.message);
+  // Don't exit the process for database errors
+  if (!err.message.includes('MySQL')) {
+    process.exit(1);
+  }
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
 });
