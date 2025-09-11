@@ -36,6 +36,8 @@ const dbConfig = {
   host: process.env.DB_HOST,        
   user: process.env.DB_USER,       
   password: process.env.WORD,   
+  user: process.env.DB_USER,       
+  password: process.env.WORD,   
   database: process.env.DB_NAME,   
   port: 3306,
   ssl: {
@@ -45,8 +47,25 @@ const dbConfig = {
   connectTimeout: 60000,
   acquireTimeout: 60000,
   // Azure MySQL specific flags
+  acquireTimeout: 60000,
+  // Azure MySQL specific flags
   flags: ['--ssl-mode=REQUIRED']
 };
+
+
+// const dbConfig = {
+//   host: "hrms-server.mysql.database.azure.com", // Hardcoded for testing
+//   user: "hrmsadmin@hrms-server", // Note: Azure requires username@servername format
+//   password: "Kaizen@1234", 
+//   database: "hrmsdb",
+//   port: 3306,
+//   ssl: {
+//     rejectUnauthorized: true,
+//     ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt'))
+//   },
+//   flags: ['--ssl-mode=REQUIRED']
+// };
+
 
 console.log('🔧 Database Config:', {
   host: dbConfig.host,
@@ -69,6 +88,8 @@ db.getConnection((err, connection) => {
     if (err.code === 'HANDSHAKE_SSL_ERROR' || err.message.includes('SSL')) {
       console.error('🔐 SSL ERROR: Azure MySQL requires DigiCertGlobalRootCA.crt certificate');
       console.error('💡 Download from: https://cacerts.digicert.com/DigiCertGlobalRootCA.crt');
+      console.error('🔐 SSL ERROR: Azure MySQL requires DigiCertGlobalRootCA.crt certificate');
+      console.error('💡 Download from: https://cacerts.digicert.com/DigiCertGlobalRootCA.crt');
     }
     return;
   }
@@ -78,6 +99,7 @@ db.getConnection((err, connection) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Server is running' });
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
