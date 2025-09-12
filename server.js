@@ -39,12 +39,11 @@ const dbConfig = {
   database: process.env.DB_NAME,
   port: 3306,
   ssl: {
-    rejectUnauthorized: true,
-    ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt.pem'))
-  },
-  connectTimeout: 60000,
-  acquireTimeout: 60000
+    ca: fs.readFileSync(path.join(__dirname, 'DigiCertBundle.pem'), 'utf8'),
+    rejectUnauthorized: true
+  }
 };
+
 
 console.log('🔧 Database Config:', {
   host: dbConfig.host,
