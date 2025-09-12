@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 8080;
 // Debug environment variables
 console.log('🔍 Environment Variables Check:');
 console.log('DB_HOST:', process.env.DB_HOST || 'NOT SET');
-console.log('DB_USER:', process.env.DB_USER || 'NOT SET'); 
+console.log('DB_USER:', process.env.DB_USER || 'NOT SET');
 console.log('DB_NAME:', process.env.DB_NAME || 'NOT SET');
 console.log('PORT:', process.env.PORT || 'NOT SET');
 
@@ -33,35 +33,18 @@ app.use('/uploads', express.static(uploadDir));
 
 // MySQL Database Connection with Azure SSL Certificate
 const dbConfig = {
-  host: process.env.DB_HOST,        
-  user: process.env.DB_USER,       
-  password: process.env.DB_PASSWORD, 
-  database: process.env.DB_NAME,   
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   port: 3306,
   ssl: {
     rejectUnauthorized: true,
-     ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt.pem')) 
+    ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt.pem'))
   },
   connectTimeout: 60000,
-  acquireTimeout: 60000,
-  acquireTimeout: 60000,
+  acquireTimeout: 60000
 };
-
-
-
-// const dbConfig = {
-//   host: "hrms-server.mysql.database.azure.com", // Hardcoded for testing
-//   user: "hrmsadmin@hrms-server", // Note: Azure requires username@servername format
-//   password: "Kaizen@1234", 
-//   database: "hrmsdb",
-//   port: 3306,
-//   ssl: {
-//     rejectUnauthorized: true,
-//     ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt'))
-//   },
-//   flags: ['--ssl-mode=REQUIRED']
-// };
-
 
 console.log('🔧 Database Config:', {
   host: dbConfig.host,
@@ -73,19 +56,15 @@ console.log('🔧 Database Config:', {
 
 const db = mysql.createPool(dbConfig);
 
-// Test the connection with detailed error reporting
+// Test the connection
 db.getConnection((err, connection) => {
   if (err) {
     console.error('❌ Database connection failed:');
     console.error('Error code:', err.code);
     console.error('Error message:', err.message);
-    
-    // Specific SSL error handling
-    if (err.code === 'HANDSHAKE_SSL_ERROR' || err.message.includes('SSL')) {
-      console.error('🔐 SSL ERROR: Azure MySQL requires DigiCertGlobalRootCA.crt certificate');
-      console.error('💡 Download from: https://cacerts.digicert.com/DigiCertGlobalRootCA.crt');
-      console.error('🔐 SSL ERROR: Azure MySQL requires DigiCertGlobalRootCA.crt certificate');
-      console.error('💡 Download from: https://cacerts.digicert.com/DigiCertGlobalRootCA.crt');
+
+    if (err.code === 'HANDSHAKE_SSL_ERROR' || (err.message && err.message.includes('SSL'))) {
+      console.error('🔐 SSL ERROR: Check DigiCertGlobalRootCA.crt.pem and DB credentials.');
     }
     return;
   }
@@ -96,17 +75,17 @@ db.getConnection((err, connection) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
-  res.json({ status: 'OK', message: 'Server is running' });
 });
 
 // API routes
-const apiRoutes = require('./api')(db); 
+const apiRoutes = require('./api')(db);
 app.use('/api', apiRoutes);
 
 // Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
