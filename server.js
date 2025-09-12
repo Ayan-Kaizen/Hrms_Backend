@@ -34,12 +34,12 @@ app.use('/uploads', express.static(uploadDir));
 // MySQL Database Connection with Azure SSL Certificate
 const dbConfig = {
   host:  "hrms-server.mysql.database.azure.com",
-  user:  "hrmsadmin",
+  user:  "hrmsadmin@hrms-server",
   password:  "Kaizen@1234",
   database:  "hrmsdb",
   port: 3306,
   ssl: {
-    ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootG2.crt.pem'), 'utf8'),
+    ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootCA.crt.pem'), 'utf8'),
     rejectUnauthorized: true
   }
 };
