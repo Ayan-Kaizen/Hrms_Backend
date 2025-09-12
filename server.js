@@ -38,10 +38,9 @@ const dbConfig = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: 3306,
-  ssl: {
-    ca: fs.readFileSync(path.join(__dirname, 'DigiCertBundle.pem'), 'utf8'),
-    rejectUnauthorized: true
-  }
+ssl: {
+  ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootG2.crt.pem'))
+}
 };
 
 
