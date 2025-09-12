@@ -33,8 +33,8 @@ app.use('/uploads', express.static(uploadDir));
 
 // MySQL Database Connection with Azure SSL Certificate
 const dbConfig = {
-  host:  "hrms-server.mysql.database.azure.com",
-  user:  "hrmsadmin@hrms-server",
+  hostname:  "hrms-server.mysql.database.azure.com",
+  username:  "hrmsadmin@hrms-server",
   password:  "Kaizen@1234",
   database:  "hrmsdb",
   port: 3306,
