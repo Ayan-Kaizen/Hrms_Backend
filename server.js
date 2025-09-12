@@ -31,15 +31,13 @@ if (!fs.existsSync(uploadDir)) {
 // Serve static files
 app.use('/uploads', express.static(uploadDir));
 
-
-
 // MySQL Database Connection with Azure SSL Certificate
 const dbConfig = {
-  host: process.env.DB_HOST || "hrms-server.mysql.database.azure.com",
-  user: process.env.DB_USER || "hrmsadmin",
-  password: process.env.DB_PASSWORD || "Kaizen@1234",
-  database: process.env.DB_NAME || "hrmsdb",
-  port: process.env.DB_PORT || 3306,
+  host:  "hrms-server.mysql.database.azure.com",
+  user:  "hrmsadmin",
+  password:  "Kaizen@1234",
+  database:  "hrmsdb",
+  port: 3306,
   ssl: {
     ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootG2.crt.pem'), 'utf8'),
     rejectUnauthorized: true
