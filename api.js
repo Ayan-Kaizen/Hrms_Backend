@@ -3,12 +3,12 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const mysql = require('mysql2');
-
+require('dotenv').config();
 const connection = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '000000',
-  database: 'hrms'
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 });
 
 // Multer setup for file upload
