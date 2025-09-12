@@ -1,4 +1,4 @@
-// require('dotenv').config();
+require('dotenv').config();
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -11,7 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // Debug environment variables
-console.log('🔍 Environment Variables Check:');
+console.log('Environment Variables Check:');
 console.log('DB_HOST:', process.env.DB_HOST || 'NOT SET');
 console.log('DB_USER:', process.env.DB_USER || 'NOT SET');
 console.log('DB_NAME:', process.env.DB_NAME || 'NOT SET');
@@ -31,12 +31,14 @@ if (!fs.existsSync(uploadDir)) {
 // Serve static files
 app.use('/uploads', express.static(uploadDir));
 
+
+
 // MySQL Database Connection with Azure SSL Certificate
 const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST || "hrms-server.mysql.database.azure.com",
+  user: process.env.DB_USER || "hrmsadmin",
+  password: process.env.DB_PASSWORD || "Kaizen@1234",
+  database: process.env.DB_NAME || "hrmsdb",
   port: process.env.DB_PORT || 3306,
   ssl: {
     ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootG2.crt.pem'), 'utf8'),
