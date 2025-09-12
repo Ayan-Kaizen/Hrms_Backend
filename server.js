@@ -35,9 +35,7 @@ app.use('/uploads', express.static(uploadDir));
 const dbConfig = {
   host: process.env.DB_HOST,        
   user: process.env.DB_USER,       
-  password: process.env.WORD,   
-  user: process.env.DB_USER,       
-  password: process.env.WORD,   
+  password: process.env.DB_PASSWORD, 
   database: process.env.DB_NAME,   
   port: 3306,
   ssl: {
@@ -46,11 +44,9 @@ const dbConfig = {
   },
   connectTimeout: 60000,
   acquireTimeout: 60000,
-  // Azure MySQL specific flags
   acquireTimeout: 60000,
-  // Azure MySQL specific flags
-  flags: ['--ssl-mode=REQUIRED']
 };
+
 
 
 // const dbConfig = {
