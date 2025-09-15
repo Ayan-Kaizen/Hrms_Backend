@@ -5,7 +5,6 @@ const path = require('path');
 const mysql = require('mysql2');
 require('dotenv').config();
 
-
 const dbConfig ={
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -16,6 +15,7 @@ const dbConfig ={
     rejectUnauthorized: false
   }
 };
+
 const db = mysql.createPool(dbConfig);
 // Multer setup for file upload
 const storage = multer.diskStorage({
