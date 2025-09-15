@@ -1,1 +1,0 @@
-{"version":"1.0","connections":[{"details":{"protocol":"mysql","address":{"server":"hrms-server.mysql.database.azure.com","database":"hrmsdb"}},"options":{"ReturnSingleDatabase":true}}]}

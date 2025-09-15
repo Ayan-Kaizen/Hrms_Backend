@@ -13,7 +13,8 @@ const dbConfig = {
   database: process.env.DB_NAME,
   port: 3306,
  ssl: {
-  ca: fs.readFileSync(path.join(__dirname, 'DigiCertGlobalRootG2.crt.pem'))
+ // ca: fs.readFileSync(path.join(__dirname, 'BaltimoreCyberTrustRoot.pem'))
+  rejectUnauthorized: false
 }
 
 };
