@@ -610,8 +610,8 @@ router.post('/raise-ticket', upload.array('files', 5), async (req, res) => {
 router.post('/leave-requests', (req, res) => {
   const { emailId, leaveType, fromDate, toDate, status, reason } = req.body;
 
-  const sql = `
-    INSERT INTO all_leaves (emailid, leavetype, fromdate, todate, \`status\`, reason)
+   const sql = `
+    INSERT INTO all_leaves (emailId, leaveType, fromDate, toDate, \`status\`, reason)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
 
