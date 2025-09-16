@@ -55,7 +55,6 @@ ssl: {
 }
 };
 
-
 console.log("🔧 Database Config:", {
   host: dbConfig.host,
   user: dbConfig.user,
@@ -90,6 +89,18 @@ db.getConnection((err, connection) => {
 app.get("/health", (req, res) => {
   res.json({ status: "OK", message: "Server is running" });
 });
+
+// app.use(cors({
+//   origin: [
+//     'http://localhost:4200', // Local development
+//     'https://yellow-mud-06dd68100.1.azurestaticapps.net/', // Replace with your actual URL
+//     'https://*.azurestaticapps.net' // Wildcard for preview deployments
+//   ],
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+//   optionsSuccessStatus: 200
+// }));
 
 // API routes
 const apiRoutes = require("./api")(db);

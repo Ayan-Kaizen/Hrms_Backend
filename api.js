@@ -30,7 +30,7 @@ const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 } });
 
 module.exports = (db) => {
 
-// ==================== ACTIVITY LOG HELPER FUNCTIONS ====================
+/// ==================== ACTIVITY LOG HELPER FUNCTIONS ====================
 
 const createActivityLog = (logData) => {
   return new Promise((resolve, reject) => {
@@ -611,7 +611,7 @@ router.post('/leave-requests', (req, res) => {
   const { emailId, leaveType, fromDate, toDate, status, reason } = req.body;
 
   const sql = `
-    INSERT INTO all_leaves (emailid, leavetype, fromdate, todate, status, reason)
+    INSERT INTO all_leaves (emailid, leavetype, fromdate, todate, \`status\`, reason)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
 
@@ -2921,7 +2921,7 @@ router.get('/employee/activity-logs/export', (req, res) => {
   });
 });
 
-// Add this to your api.js file
+// ==================== DATABASE CONNECTION TEST ====================
 router.get('/test-connection', (req, res) => {
   db.getConnection((err, connection) => {
     if (err) {
@@ -2951,3 +2951,49 @@ router.get('/test-connection', (req, res) => {
 
   return router;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
