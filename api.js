@@ -617,7 +617,7 @@ router.post('/leave-requests', (req, res) => {
 
   const values = [emailId, leaveType, fromDate, toDate, status, reason];
 
-  connection.query(sql, values, (error, results) => {
+  db.query(sql, values, (error, results) => {
     if (error) {
       console.error('Error inserting leave request:', error);
       return res.status(500).json({ error: 'Failed to submit leave request' });
