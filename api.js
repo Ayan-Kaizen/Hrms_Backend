@@ -607,10 +607,30 @@ router.post('/raise-ticket', upload.array('files', 5), async (req, res) => {
 
 
 // Get leave requests
+// router.post('/leave-requests', (req, res) => {
+//    const { emailId, leaveType, fromDate, toDate, status, reason } = req.body;
+
+//    const sql = `
+//     INSERT INTO all_leaves (emailId, leaveType, fromDate, toDate, \`status\`, reason)
+//     VALUES (?, ?, ?, ?, ?, ?)
+//   `;
+
+//   const values = [emailId, leaveType, fromDate, toDate, status, reason];
+
+//   connection.query(sql, values, (error, results) => {
+//     if (error) {
+//       console.error('Error inserting leave request:', error);
+//       return res.status(500).json({ error: 'Failed to submit leave request' });
+//     }
+//     res.status(200).json({ message: 'Leave request submitted successfully', data: results });
+//   });
+// });
+
+
 router.post('/leave-requests', (req, res) => {
   const { emailId, leaveType, fromDate, toDate, status, reason } = req.body;
 
-   const sql = `
+  const sql = `
     INSERT INTO all_leaves (emailId, leaveType, fromDate, toDate, \`status\`, reason)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
@@ -619,12 +639,22 @@ router.post('/leave-requests', (req, res) => {
 
   connection.query(sql, values, (error, results) => {
     if (error) {
-      console.error('Error inserting leave request:', error);
-      return res.status(500).json({ error: 'Failed to submit leave request' });
+      console.error("❌ SQL Error:", {
+        code: error.code,
+        errno: error.errno,
+        sqlMessage: error.sqlMessage,
+        sqlState: error.sqlState,
+        sql: error.sql
+      });
+      return res.status(500).json({
+        error: "Failed to submit leave request",
+        details: error.sqlMessage
+      });
     }
-    res.status(200).json({ message: 'Leave request submitted successfully', data: results });
+    res.status(200).json({ message: "✅ Leave request submitted", id: results.insertId });
   });
 });
+
 
 router.get('/get-leave-requests', (req, res) => {
   console.log("Request to /api/get-leave-requests received");
