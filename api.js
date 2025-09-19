@@ -1157,6 +1157,7 @@ router.post('/assets', async (req, res) => {
     model,
     status,
     allocated_to,
+    allocated_to_office = null,
     vendor,
     vendor_email,
     vendor_contact,
@@ -1170,11 +1171,11 @@ router.post('/assets', async (req, res) => {
    // In the insert function, update the SQL and values:
 const sql = `
   INSERT INTO assets (
-    asset_id, serial_no, name, type, brand, model, status, allocated_to, 
-    allocated_to_office, vendor, vendor_email, vendor_contact, warranty_expiry, 
-    purchase_date, purchase_cost, reason, emp_email
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`;
+        asset_id, serial_no, name, type, brand, model, status, allocated_to, 
+        allocated_to_office, vendor, vendor_email, vendor_contact, warranty_expiry, 
+        purchase_date, purchase_cost, reason, emp_email
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
 const values = [
   finalAssetId,
@@ -1294,6 +1295,7 @@ router.put('/assets/:id', (req, res) => {
     model,
     status,
     allocated_to,
+    allocated_to_office = null,
     vendor,
     vendor_email,
     vendor_contact,
@@ -2959,7 +2961,6 @@ router.get('/test-connection', (req, res) => {
 
   return router;
 };
-
 
 
 
