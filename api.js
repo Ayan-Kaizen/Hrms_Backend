@@ -974,25 +974,27 @@ router.get('/assets', (req, res) => {
     page = 1, limit = 10 
   } = req.query;
 
-  let sql = `
-    SELECT a.*, 
-           v.name as vendor_name, 
-           v.contact_person as vendor_contact_person,
-           v.email as vendor_email,
-           v.phone as vendor_phone,
-           a.created_at,
-           COALESCE(
-             (SELECT ah.notes
-              FROM asset_allocation_history ah
-              WHERE ah.asset_id = a.asset_id
-              ORDER BY ah.allocated_date DESC
-              LIMIT 1),
-             a.reason
-           ) AS reason
-    FROM assets a
-    LEFT JOIN vendors v ON a.vendor = v.name
-    WHERE 1=1
-  `;
+ // In your existing GET /assets endpoint, update the SELECT query to include allocated_to_office:
+let sql = `
+  SELECT a.*, 
+         v.name as vendor_name, 
+         v.contact_person as vendor_contact_person,
+         v.email as vendor_email,
+         v.phone as vendor_phone,
+         a.created_at,
+         a.allocated_to_office,  -- Added this line
+         COALESCE(
+           (SELECT ah.notes
+            FROM asset_allocation_history ah
+            WHERE ah.asset_id = a.asset_id
+            ORDER BY ah.allocated_date DESC
+            LIMIT 1),
+           a.reason
+         ) AS reason
+  FROM assets a
+  LEFT JOIN vendors v ON a.vendor = v.name
+  WHERE 1=1
+`;
 
   let params = [];
 
@@ -1165,32 +1167,34 @@ router.post('/assets', async (req, res) => {
   } = req.body;
 
   const insert = async (finalAssetId, emp_email, emp_name) => {
-    const sql = `
-      INSERT INTO assets (
-        asset_id, serial_no, name, type, brand, model, status, allocated_to, 
-        vendor, vendor_email, vendor_contact, warranty_expiry, 
-        purchase_date, purchase_cost, reason, emp_email
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+   // In the insert function, update the SQL and values:
+const sql = `
+  INSERT INTO assets (
+    asset_id, serial_no, name, type, brand, model, status, allocated_to, 
+    allocated_to_office, vendor, vendor_email, vendor_contact, warranty_expiry, 
+    purchase_date, purchase_cost, reason, emp_email
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
 
-    const values = [
-      finalAssetId,
-      serial_number,
-      name,
-      type,
-      brand,
-      model,
-      status || 'Available',
-      allocated_to,
-      vendor,
-      vendor_email,
-      vendor_contact,
-      warranty_expiry,
-      purchase_date,
-      purchase_cost,
-      reason || null,
-      emp_email
-    ];
+const values = [
+  finalAssetId,
+  serial_number,
+  name,
+  type,
+  brand,
+  model,
+  status || 'Available',
+  allocated_to,
+  allocated_to_office || null,  // Added this line
+  vendor,
+  vendor_email,
+  vendor_contact,
+  warranty_expiry,
+  purchase_date,
+  purchase_cost,
+  reason || null,
+  emp_email
+];
 
     db.query(sql, values, async (err, results) => {
       if (err) {
@@ -1313,31 +1317,35 @@ router.put('/assets/:id', (req, res) => {
 
     const emp_email = results[0].email;
 
-    const updateSql = `
-      UPDATE assets SET 
-        name = ?, type = ?, brand = ?, model = ?, status = ?, 
-        allocated_to = ?, vendor = ?, vendor_email = ?, vendor_contact = ?, 
-        warranty_expiry = ?, purchase_date = ?, purchase_cost = ?, reason = ?, emp_email = ?
-      WHERE asset_id = ?
-    `;
+ // In the updateAsset function, update the SQL and values:
+const updateSql = `
+  UPDATE assets SET 
+    name = ?, type = ?, brand = ?, model = ?, status = ?, 
+    allocated_to = ?, allocated_to_office = ?, vendor = ?, 
+    vendor_email = ?, vendor_contact = ?, 
+    warranty_expiry = ?, purchase_date = ?, purchase_cost = ?, 
+    reason = ?, emp_email = ?
+  WHERE asset_id = ?
+`;
 
-    const values = [
-      name,
-      type,
-      brand,
-      model,
-      status,
-      allocated_to,
-      vendor,
-      vendor_email,
-      vendor_contact,
-      warranty_expiry,
-      purchase_date,
-      purchase_cost,
-      reason || null,
-      emp_email,
-      id
-    ];
+const values = [
+  name,
+  type,
+  brand,
+  model,
+  status,
+  allocated_to,
+  allocated_to_office || null,  // Added this line
+  vendor,
+  vendor_email,
+  vendor_contact,
+  warranty_expiry,
+  purchase_date,
+  purchase_cost,
+  reason || null,
+  emp_email,
+  id
+];
 
     db.query(updateSql, values, (err, results) => {
       if (err) {
