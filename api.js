@@ -1305,7 +1305,7 @@ router.put('/assets/:id', (req, res) => {
     reason
   } = req.body;
 
-  const getEmailSql = `SELECT email FROM users WHERE employee_id = ?`;
+  const getEmailSql = `SELECT asset_id  FROM users WHERE asset_id  = ?`;
 
   db.query(getEmailSql, [allocated_to], (err, results) => {
     if (err) {
@@ -1337,7 +1337,7 @@ const values = [
   model,
   status,
   allocated_to,
-  allocated_to_office || null,  // Added this line
+  allocated_to_office || null,  
   vendor,
   vendor_email,
   vendor_contact,
