@@ -482,12 +482,11 @@ router.post('/raise-ticket', upload.array('files', 5), async (req, res) => {
       const created_at = new Date();
 
       const insertTicketSql = `
-        INSERT INTO maintenance_tickets (
-          ticket_id, asset_id, reported_by, issue_description, status, priority, created_at
-        ) VALUES (?, ?, ?, ?, 'Open', ?, ?)
-      `;
-
-      db.query(insertTicketSql, [ticket_id, asset_id, reported_by, issue_description, priority, created_at], async (err, result) => {
+  INSERT INTO maintenance_tickets (
+    ticket_id, asset_id, reported_by, issue_description, status, created_at
+  ) VALUES (?, ?, ?, ?, 'Open', ?)
+`;
+     db.query(insertTicketSql, [ticket_id, asset_id, reported_by, issue_description, created_at], async (err, result) => {
         if (err) {
           console.error('Error inserting ticket:', err);
           return res.status(500).json({ success: false, message: 'Failed to create ticket' });
@@ -1170,32 +1169,30 @@ router.post('/assets', async (req, res) => {
   const insert = async (finalAssetId, emp_email, emp_name) => {
    // In the insert function, update the SQL and values:
 const sql = `
-  INSERT INTO assets (
-        asset_id, serial_no, name, type, brand, model, status, allocated_to, 
-        allocated_to_office, vendor, vendor_email, vendor_contact, warranty_expiry, 
-        purchase_date, purchase_cost, reason, emp_email
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+    INSERT INTO assets (
+      asset_id, serial_no, name, type, brand, model, status, allocated_to, 
+      allocated_to_office, vendor, vendor_email, vendor_contact, warranty_expiry, 
+      reason, emp_email
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
 
 const values = [
-  finalAssetId,
-  serial_number,
-  name,
-  type,
-  brand,
-  model,
-  status || 'Available',
-  allocated_to,
-  allocated_to_office || null,  // Added this line
-  vendor,
-  vendor_email,
-  vendor_contact,
-  warranty_expiry,
-  purchase_date,
-  purchase_cost,
-  reason || null,
-  emp_email
-];
+    finalAssetId,
+    serial_number,
+    name,
+    type,
+    brand,
+    model,
+    status || 'Available',
+    allocated_to,
+    allocated_to_office || null,  // Handle the new field
+    vendor,
+    vendor_email,
+    vendor_contact,
+    warranty_expiry,
+    reason || null,
+    emp_email
+  ];
 
     db.query(sql, values, async (err, results) => {
       if (err) {
@@ -1286,90 +1283,276 @@ const values = [
   });
 });
 
-router.put('/assets/:id', (req, res) => {
+// router.put('/assets/:id', (req, res) => {
+//   const { id } = req.params;
+//   const {
+//     name,
+//     type,
+//     brand,
+//     model,
+//     status,
+//     allocated_to,
+//     allocated_to_office = null,
+//     vendor,
+//     vendor_email,
+//     vendor_contact,
+//     warranty_expiry,
+//     purchase_date,
+//     purchase_cost,
+//     reason
+//   } = req.body;
+
+//   const getEmailSql = `SELECT email FROM users WHERE employee_id = ?`;
+
+//   db.query(getEmailSql, [allocated_to], (err, results) => {
+//     if (err) {
+//       console.error('Error fetching user email:', err);
+//       return res.status(500).json({ success: false, message: 'Server error while fetching user email' });
+//     }
+
+//     if (results.length === 0) {
+//       return res.status(404).json({ success: false, message: 'User not found with this employee_id' });
+//     }
+
+//     const emp_email = results[0].email;
+
+//  // In the updateAsset function, update the SQL and values:
+// const updateSql = `
+//   UPDATE assets SET 
+//     name = ?, type = ?, brand = ?, model = ?, status = ?, 
+//     allocated_to = ?, allocated_to_office = ?, vendor = ?, 
+//     vendor_email = ?, vendor_contact = ?, 
+//     warranty_expiry = ?, purchase_date = ?, purchase_cost = ?, 
+//     reason = ?, emp_email = ?
+//   WHERE asset_id = ?
+// `;
+
+// const values = [
+//   name,
+//   type,
+//   brand,
+//   model,
+//   status,
+//   allocated_to,
+//   allocated_to_office || null,  
+//   vendor,
+//   vendor_email,
+//   vendor_contact,
+//   warranty_expiry,
+//   purchase_date,
+//   purchase_cost,
+//   reason || null,
+//   emp_email,
+//   id
+// ];
+
+//     db.query(updateSql, values, (err, results) => {
+//       if (err) {
+//         console.error('Error updating asset:', err);
+//         return res.status(500).json({ success: false, message: 'Server error while updating asset' });
+//       }
+
+//       if (results.affectedRows === 0) {
+//         return res.status(404).json({ success: false, message: 'Asset not found' });
+//       }
+
+//       res.json({ success: true, message: 'Asset updated successfully' });
+//     });
+//   });
+// });
+
+router.put('/assets/:id', async (req, res) => {
   const { id } = req.params;
   const {
+    serial_number,
     name,
     type,
     brand,
     model,
     status,
     allocated_to,
-    allocated_to_office = null,
+    allocated_to_office,
     vendor,
     vendor_email,
     vendor_contact,
     warranty_expiry,
-    purchase_date,
-    purchase_cost,
     reason
   } = req.body;
 
-  const getEmailSql = `SELECT asset_id  FROM users WHERE asset_id  = ?`;
+  console.log('PUT /assets/:id - Asset ID:', id);
+  console.log('PUT /assets/:id - Request body:', req.body);
 
-  db.query(getEmailSql, [allocated_to], (err, results) => {
-    if (err) {
-      console.error('Error fetching user email:', err);
-      return res.status(500).json({ success: false, message: 'Server error while fetching user email' });
-    }
-
-    if (results.length === 0) {
-      return res.status(404).json({ success: false, message: 'User not found with this employee_id' });
-    }
-
-    const emp_email = results[0].email;
-
- // In the updateAsset function, update the SQL and values:
-const updateSql = `
-  UPDATE assets SET 
-    name = ?, type = ?, brand = ?, model = ?, status = ?, 
-    allocated_to = ?, allocated_to_office = ?, vendor = ?, 
-    vendor_email = ?, vendor_contact = ?, 
-    warranty_expiry = ?, purchase_date = ?, purchase_cost = ?, 
-    reason = ?, emp_email = ?
-  WHERE asset_id = ?
-`;
-
-const values = [
-  name,
-  type,
-  brand,
-  model,
-  status,
-  allocated_to,
-  allocated_to_office || null,  
-  vendor,
-  vendor_email,
-  vendor_contact,
-  warranty_expiry,
-  purchase_date,
-  purchase_cost,
-  reason || null,
-  emp_email,
-  id
-];
-
-    db.query(updateSql, values, (err, results) => {
-      if (err) {
-        console.error('Error updating asset:', err);
-        return res.status(500).json({ success: false, message: 'Server error while updating asset' });
+  try {
+    // First, verify the asset exists
+    const checkAssetSql = 'SELECT * FROM assets WHERE asset_id = ? OR id = ?';
+    
+    db.query(checkAssetSql, [id, id], (checkErr, checkResults) => {
+      if (checkErr) {
+        console.error('Error checking asset existence:', checkErr);
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Error verifying asset',
+          error: checkErr.message 
+        });
       }
 
-      if (results.affectedRows === 0) {
-        return res.status(404).json({ success: false, message: 'Asset not found' });
+      if (checkResults.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Asset not found' 
+        });
       }
 
-      res.json({ success: true, message: 'Asset updated successfully' });
+      const existingAsset = checkResults[0];
+      
+      // Handle employee email lookup if allocation exists
+      const handleUpdate = (emp_email = null) => {
+        const updateSql = `
+          UPDATE assets SET 
+            serial_no = ?,
+            name = ?,
+            type = ?,
+            brand = ?,
+            model = ?,
+            status = ?,
+            allocated_to = ?,
+            allocated_to_office = ?,
+            vendor = ?,
+            vendor_email = ?,
+            vendor_contact = ?,
+            warranty_expiry = ?,
+            reason = ?,
+            emp_email = ?,
+            updated_at = NOW()
+          WHERE asset_id = ? 
+        `;
+
+        const values = [
+          serial_number || existingAsset.serial_no,
+          name || existingAsset.name,
+          type || existingAsset.type,
+          brand || existingAsset.brand,
+          model || existingAsset.model,
+          status || existingAsset.status,
+          allocated_to || existingAsset.allocated_to,
+          allocated_to_office || existingAsset.allocated_to_office,
+          vendor || existingAsset.vendor,
+          vendor_email || existingAsset.vendor_email,
+          vendor_contact || existingAsset.vendor_contact,
+          warranty_expiry || existingAsset.warranty_expiry,
+          reason || existingAsset.reason,
+          emp_email || existingAsset.emp_email,
+          id,  // For asset_id condition
+          id   // For id condition
+        ];
+
+        console.log('Executing UPDATE with values:', values);
+
+        db.query(updateSql, values, (updateErr, updateResults) => {
+          if (updateErr) {
+            console.error('UPDATE query error:', updateErr);
+            return res.status(500).json({ 
+              success: false, 
+              message: 'Database update failed',
+              error: updateErr.message,
+              sqlMessage: updateErr.sqlMessage 
+            });
+          }
+
+          console.log('UPDATE results:', updateResults);
+
+          if (updateResults.affectedRows === 0) {
+            return res.status(404).json({ 
+              success: false, 
+              message: 'Asset not found or no changes made' 
+            });
+          }
+
+          res.json({
+            success: true,
+            message: 'Asset updated successfully',
+            data: {
+              assetId: id,
+              affectedRows: updateResults.affectedRows,
+              changes: {
+                serial_number,
+                name,
+                type,
+                brand,
+                model,
+                status,
+                allocated_to,
+                allocated_to_office,
+                vendor,
+                vendor_email,
+                vendor_contact,
+                warranty_expiry,
+                reason
+              }
+            }
+          });
+        });
+      };
+
+      // If allocating to an employee, get their email
+      if (allocated_to && allocated_to.trim() !== '') {
+        const getEmployeeSql = 'SELECT email FROM users WHERE employee_id = ?';
+        db.query(getEmployeeSql, [allocated_to], (empErr, empResults) => {
+          if (empErr) {
+            console.error('Employee lookup error:', empErr);
+            // Continue with null email
+            handleUpdate(null);
+          } else {
+            const emp_email = empResults.length > 0 ? empResults[0].email : null;
+            handleUpdate(emp_email);
+          }
+        });
+      } else {
+        handleUpdate(null);
+      }
     });
-  });
+
+  } catch (error) {
+    console.error('Unexpected error in asset update:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error',
+      error: error.message 
+    });
+  }
 });
+
+
+
+// router.delete('/assets/:id', (req, res) => {
+//   const { id } = req.params;
+
+//   const sql = 'DELETE FROM assets WHERE asset_id = ?';
+
+//   db.query(sql, [id], (err, results) => {
+//     if (err) {
+//       console.error('Error deleting asset:', err);
+//       return res.status(500).json({ success: false, message: 'Server error' });
+//     }
+
+//     if (results.affectedRows === 0) {
+//       return res.status(404).json({ success: false, message: 'Asset not found' });
+//     }
+
+//     res.json({ success: true, message: 'Asset deleted successfully' });
+//   });
+// });
+
 
 router.delete('/assets/:id', (req, res) => {
   const { id } = req.params;
 
-  const sql = 'DELETE FROM assets WHERE asset_id = ? OR id = ?';
+  // Log input for debugging
+  console.log(`Attempting to delete asset with asset_id = ${id}`);
 
-  db.query(sql, [id, id], (err, results) => {
+  const sql = 'DELETE FROM assets WHERE asset_id = ?';
+
+  db.query(sql, [id], (err, results) => {
     if (err) {
       console.error('Error deleting asset:', err);
       return res.status(500).json({ success: false, message: 'Server error' });
@@ -1382,6 +1565,8 @@ router.delete('/assets/:id', (req, res) => {
     res.json({ success: true, message: 'Asset deleted successfully' });
   });
 });
+
+
 
 router.get('/assets/filters/options', (req, res) => {
   const queries = [
@@ -1827,14 +2012,13 @@ router.get('/tickets/next-id', (req, res) => {
 router.get('/hr/tickets', (req, res) => {
   const { status, page = 1, limit = 20 } = req.query;
 
-  let sql = `
+ let sql = `
     SELECT 
       mt.ticket_id,
       mt.asset_id,
       mt.reported_by,
       mt.issue_description,
       mt.status,
-      mt.priority,
       mt.created_at,
       mt.assigned_to,
       mt.resolution_notes,
@@ -1911,7 +2095,18 @@ router.get('/hr/tickets', (req, res) => {
     }
   });
 });
-
+// Serve uploaded files
+router.get('/uploads/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(__dirname, '../uploads', filename);
+  
+  // Check if file exists
+  if (require('fs').existsSync(filepath)) {
+    res.sendFile(filepath);
+  } else {
+    res.status(404).json({ success: false, message: 'File not found' });
+  }
+});
 router.get('/hr/ticket-stats', (req, res) => {
   const statsSql = `
     SELECT 
