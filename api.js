@@ -5,7 +5,7 @@ const path = require('path');
 const mysql = require('mysql2');
 require('dotenv').config();
 
-const dbConfig ={
+const dbConfig = {
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
@@ -17,6 +17,7 @@ const dbConfig ={
 };
 
 const db = mysql.createPool(dbConfig);
+
 // Multer setup for file upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -127,6 +128,93 @@ const logTicketConversation = async (ticketId, actionType, description, performe
     console.error('Error logging ticket conversation:', error);
     throw error;
   }
+};
+
+// Asset Activity Logging Helper Functions
+const logAssetAllocation = async (assetData, employeeData) => {
+  try {
+    await createActivityLog({
+      employee_id: employeeData.employee_id,
+      employee_email: employeeData.email,
+      employee_name: employeeData.name,
+      action_type: 'asset_allocated',
+      action_description: `Asset ${assetData.asset_id} (${assetData.name}) allocated`,
+      asset_id: assetData.asset_id,
+      performed_by: 'HR',
+      performed_by_name: 'HR Team',
+      additional_data: {
+        asset_name: assetData.name,
+        asset_type: assetData.type,
+        brand: assetData.brand,
+        model: assetData.model,
+        status: assetData.status,
+        allocation_type: assetData.allocated_to ? 'employee' : 'office',
+        location: assetData.location || null
+      }
+    });
+  } catch (logError) {
+    console.error('Failed to create activity log for asset allocation:', logError);
+  }
+};
+
+const logAssetUpdate = async (assetData, oldAssetData, employeeData) => {
+  // After the successful update query, replace the existing logging code with:
+try {
+  // Log asset update activity with better change detection
+  const changes = [];
+  const newAssetData = {
+    asset_id: id,
+    status: status || existingAsset.status,
+    allocated_to: allocated_to || existingAsset.allocated_to,
+    allocated_to_office: allocated_to_office || existingAsset.allocated_to_office,
+    location: location || existingAsset.location,
+    name: name || existingAsset.name,
+    type: type || existingAsset.type,
+    brand: brand || existingAsset.brand,
+    model: model || existingAsset.model
+  };
+
+  // Detect changes
+  if (existingAsset.status !== newAssetData.status) {
+    changes.push(`Status: ${existingAsset.status} → ${newAssetData.status}`);
+  }
+  if (existingAsset.allocated_to !== newAssetData.allocated_to) {
+    changes.push(`Employee allocation: ${existingAsset.allocated_to || 'None'} → ${newAssetData.allocated_to || 'None'}`);
+  }
+  if (existingAsset.allocated_to_office !== newAssetData.allocated_to_office) {
+    changes.push(`Office allocation: ${existingAsset.allocated_to_office || 'No'} → ${newAssetData.allocated_to_office || 'No'}`);
+  }
+  if (existingAsset.location !== newAssetData.location) {
+    changes.push(`Location: ${existingAsset.location || 'None'} → ${newAssetData.location || 'None'}`);
+  }
+  if (existingAsset.name !== newAssetData.name) {
+    changes.push(`Name: ${existingAsset.name} → ${newAssetData.name}`);
+  }
+
+  // Only log if there are actual changes
+  if (changes.length > 0) {
+    await createActivityLog({
+      employee_id: emp_email ? (allocated_to || existingAsset.allocated_to) : null,
+      employee_email: emp_email || (existingAsset.allocated_to ? existingAsset.emp_email : null),
+      employee_name: emp_name || (existingAsset.allocated_to ? 'Employee' : 'System'),
+      action_type: 'asset_updated',
+      action_description: `Asset ${id} updated: ${changes.join(', ')}`,
+      asset_id: id,
+      performed_by: 'HR',
+      performed_by_name: 'HR Team',
+      additional_data: {
+        changes: changes,
+        new_status: newAssetData.status,
+        old_status: existingAsset.status,
+        asset_name: newAssetData.name,
+        asset_type: newAssetData.type
+      }
+    });
+  }
+
+} catch (logError) {
+  console.error('Failed to log asset update:', logError);
+}
 };
 
 // ==================== EXISTING ROUTES ====================
@@ -482,11 +570,12 @@ router.post('/raise-ticket', upload.array('files', 5), async (req, res) => {
       const created_at = new Date();
 
       const insertTicketSql = `
-  INSERT INTO maintenance_tickets (
-    ticket_id, asset_id, reported_by, issue_description, status, created_at
-  ) VALUES (?, ?, ?, ?, 'Open', ?)
-`;
-     db.query(insertTicketSql, [ticket_id, asset_id, reported_by, issue_description, created_at], async (err, result) => {
+        INSERT INTO maintenance_tickets (
+          ticket_id, asset_id, reported_by, issue_description, status, created_at
+        ) VALUES (?, ?, ?, ?, 'Open', ?)
+      `;
+      
+      db.query(insertTicketSql, [ticket_id, asset_id, reported_by, issue_description, created_at], async (err, result) => {
         if (err) {
           console.error('Error inserting ticket:', err);
           return res.status(500).json({ success: false, message: 'Failed to create ticket' });
@@ -495,7 +584,7 @@ router.post('/raise-ticket', upload.array('files', 5), async (req, res) => {
         try {
           const employee = await getEmployeeDetailsByEmail(reported_by);
 
-          // 🔹 Log into ticket_conversations
+          // Log into activity_logs
           await logTicketConversation(
             ticket_id,
             'ticket_created',
@@ -511,43 +600,7 @@ router.post('/raise-ticket', upload.array('files', 5), async (req, res) => {
             }
           );
 
-          // 🔹 Insert into activity_logs table
-          const insertActivitySql = `
-            INSERT INTO activity_logs (
-              employee_email, employee_id, employee_name,
-              action_type, action_description,
-              asset_id, ticket_id,
-              performed_by, performed_by_name,
-              created_at, additional_data
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-
-          // const activityData = [
-          //   reported_by,
-          //   employee.id,   // assuming getEmployeeDetailsByEmail returns {id, name, email,...}
-          //   employee.name,
-          //   'ticket_created',
-          //   `Raised new ticket for asset ${asset_id}`,
-          //   asset_id,
-          //   ticket_id,
-          //   reported_by,
-          //   employee.name,
-          //   new Date(),
-          //   JSON.stringify({
-          //     issue_description,
-          //     priority,
-          //     has_evidence: req.files && req.files.length > 0,
-          //     evidence_count: req.files ? req.files.length : 0
-          //   })
-          // ];
-
-          db.query(insertActivitySql, activityData, (err3) => {
-            if (err3) {
-              console.error('Error inserting into activity_logs:', err3);
-            }
-          });
-
-          // 🔹 Handle evidence uploads
+          // Handle evidence uploads
           if (req.files && req.files.length > 0) {
             const evidenceValues = req.files.map(file => [
               ticket_id,
@@ -603,7 +656,6 @@ router.post('/raise-ticket', upload.array('files', 5), async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
-
 
 // Get leave requests
 router.post('/leave-requests', (req, res) => {
@@ -965,7 +1017,7 @@ router.post('/update-leave-balance', (req, res) => {
   });
 });
 
-// ==================== ASSET MANAGEMENT APIs ====================
+// ==================== UPDATED ASSET MANAGEMENT APIs ====================
 
 router.get('/assets', (req, res) => {
   const { 
@@ -973,27 +1025,27 @@ router.get('/assets', (req, res) => {
     page = 1, limit = 10 
   } = req.query;
 
- // In your existing GET /assets endpoint, update the SELECT query to include allocated_to_office:
-let sql = `
-  SELECT a.*, 
-         v.name as vendor_name, 
-         v.contact_person as vendor_contact_person,
-         v.email as vendor_email,
-         v.phone as vendor_phone,
-         a.created_at,
-         a.allocated_to_office,  -- Added this line
-         COALESCE(
-           (SELECT ah.notes
-            FROM asset_allocation_history ah
-            WHERE ah.asset_id = a.asset_id
-            ORDER BY ah.allocated_date DESC
-            LIMIT 1),
-           a.reason
-         ) AS reason
-  FROM assets a
-  LEFT JOIN vendors v ON a.vendor = v.name
-  WHERE 1=1
-`;
+  let sql = `
+    SELECT a.*, 
+           v.name as vendor_name, 
+           v.contact_person as vendor_contact_person,
+           v.email as vendor_email,
+           v.phone as vendor_phone,
+           a.created_at,
+           a.allocated_to_office,
+           a.location,
+           COALESCE(
+             (SELECT ah.notes
+              FROM asset_allocation_history ah
+              WHERE ah.asset_id = a.asset_id
+              ORDER BY ah.allocated_date DESC
+              LIMIT 1),
+             a.reason
+           ) AS reason
+    FROM assets a
+    LEFT JOIN vendors v ON a.vendor = v.name
+    WHERE 1=1
+  `;
 
   let params = [];
 
@@ -1145,7 +1197,7 @@ router.get('/assets/:id', (req, res) => {
   });
 });
 
-// Enhanced asset creation with activity logging
+// Enhanced asset creation with activity logging and location support
 router.post('/assets', async (req, res) => {
   let {
     asset_id,
@@ -1157,82 +1209,127 @@ router.post('/assets', async (req, res) => {
     status,
     allocated_to,
     allocated_to_office = null,
+    location = null,
     vendor,
     vendor_email,
     vendor_contact,
     warranty_expiry,
-    purchase_date,
-    purchase_cost,
     reason
   } = req.body;
 
   const insert = async (finalAssetId, emp_email, emp_name) => {
-   // In the insert function, update the SQL and values:
-const sql = `
-    INSERT INTO assets (
-      asset_id, serial_no, name, type, brand, model, status, allocated_to, 
-      allocated_to_office, vendor, vendor_email, vendor_contact, warranty_expiry, 
-      reason, emp_email
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+    const sql = `
+      INSERT INTO assets (
+        asset_id, serial_no, name, type, brand, model, status, allocated_to, 
+        allocated_to_office, location, vendor, vendor_email, vendor_contact, 
+        warranty_expiry, reason, emp_email
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-const values = [
-    finalAssetId,
-    serial_number,
-    name,
-    type,
-    brand,
-    model,
-    status || 'Available',
-    allocated_to,
-    allocated_to_office || null,  // Handle the new field
-    vendor,
-    vendor_email,
-    vendor_contact,
-    warranty_expiry,
-    reason || null,
-    emp_email
-  ];
+    const values = [
+      finalAssetId,
+      serial_number,
+      name,
+      type,
+      brand,
+      model,
+      status || 'Available',
+      allocated_to,
+      allocated_to_office || null,
+      location || null,
+      vendor,
+      vendor_email,
+      vendor_contact,
+      warranty_expiry,
+      reason || null,
+      emp_email
+    ];
 
     db.query(sql, values, async (err, results) => {
-      if (err) {
-        console.error('Error creating asset:', err);
-        if (err.code === 'ER_DUP_ENTRY') {
-          return res.status(409).json({ success: false, message: 'Asset ID already exists' });
-        }
-        return res.status(500).json({ success: false, message: 'Server error while inserting asset' });
-      }
+  if (err) {
+    console.error('Error creating asset:', err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ success: false, message: 'Asset ID already exists' });
+    }
+    return res.status(500).json({ success: false, message: 'Server error while inserting asset' });
+  }
 
-      if (allocated_to && emp_email) {
-        try {
-          await createActivityLog({
-            employee_id: allocated_to,
-            employee_email: emp_email,
-            employee_name: emp_name,
-            action_type: 'asset_allocated',
-            action_description: `Asset ${finalAssetId} (${name}) allocated`,
-            asset_id: finalAssetId,
-            performed_by: 'HR',
-            performed_by_name: 'HR Team',
-            additional_data: {
-              asset_name: name,
-              asset_type: type,
-              brand: brand,
-              model: model,
-              status: status
-            }
-          });
-        } catch (logError) {
-          console.error('Failed to create activity log for asset allocation:', logError);
-        }
+  // Always log asset creation
+  try {
+    await createActivityLog({
+      employee_id: emp_email ? allocated_to : null,
+      employee_email: emp_email || null,
+      employee_name: emp_name || 'System',
+      action_type: 'asset_created',
+      action_description: `New asset created: ${finalAssetId} (${name})`,
+      asset_id: finalAssetId,
+      performed_by: 'HR',
+      performed_by_name: 'HR Team',
+      additional_data: {
+        asset_name: name,
+        asset_type: type,
+        brand,
+        model,
+        status,
+        serial_number
       }
-
-      res.status(201).json({
-        success: true,
-        message: 'Asset created successfully',
-        data: { id: results.insertId, asset_id: finalAssetId }
-      });
     });
+  } catch (logError) {
+    console.error('Failed to create activity log for asset creation:', logError);
+  }
+
+  // Log asset allocation if allocated
+  if (status === 'Allocated') {
+    try {
+      if (allocated_to && emp_email) {
+        // Employee allocation
+        await logAssetAllocation({
+          asset_id: finalAssetId,
+          name,
+          type,
+          brand,
+          model,
+          status,
+          allocated_to,
+          location
+        }, {
+          employee_id: allocated_to,
+          email: emp_email,
+          name: emp_name
+        });
+      } else if (allocated_to_office && location) {
+        // Office allocation
+        await createActivityLog({
+          employee_id: null,
+          employee_email: null,
+          employee_name: 'System',
+          action_type: 'asset_allocated',
+          action_description: `Asset ${finalAssetId} (${name}) allocated to office location: ${location}`,
+          asset_id: finalAssetId,
+          performed_by: 'HR',
+          performed_by_name: 'HR Team',
+          additional_data: {
+            asset_name: name,
+            asset_type: type,
+            brand,
+            model,
+            status,
+            allocation_type: 'office',
+            location
+          }
+        });
+      }
+    } catch (logError) {
+      console.error('Failed to create activity log for asset allocation:', logError);
+    }
+  }
+
+  res.status(201).json({
+    success: true,
+    message: 'Asset created successfully',
+    data: { id: results.insertId, asset_id: finalAssetId }
+  });
+});
   };
 
   const proceed = (emp_email, emp_name) => {
@@ -1260,9 +1357,9 @@ const values = [
     });
   };
 
- if (!allocated_to || allocated_to.trim() === '') {
-  return proceed(null, null);
-}
+  if (!allocated_to || allocated_to.trim() === '') {
+    return proceed(null, null);
+  }
 
   const getEmployeeSql = `SELECT email, name FROM users WHERE employee_id = ?`;
 
@@ -1283,84 +1380,7 @@ const values = [
   });
 });
 
-// router.put('/assets/:id', (req, res) => {
-//   const { id } = req.params;
-//   const {
-//     name,
-//     type,
-//     brand,
-//     model,
-//     status,
-//     allocated_to,
-//     allocated_to_office = null,
-//     vendor,
-//     vendor_email,
-//     vendor_contact,
-//     warranty_expiry,
-//     purchase_date,
-//     purchase_cost,
-//     reason
-//   } = req.body;
-
-//   const getEmailSql = `SELECT email FROM users WHERE employee_id = ?`;
-
-//   db.query(getEmailSql, [allocated_to], (err, results) => {
-//     if (err) {
-//       console.error('Error fetching user email:', err);
-//       return res.status(500).json({ success: false, message: 'Server error while fetching user email' });
-//     }
-
-//     if (results.length === 0) {
-//       return res.status(404).json({ success: false, message: 'User not found with this employee_id' });
-//     }
-
-//     const emp_email = results[0].email;
-
-//  // In the updateAsset function, update the SQL and values:
-// const updateSql = `
-//   UPDATE assets SET 
-//     name = ?, type = ?, brand = ?, model = ?, status = ?, 
-//     allocated_to = ?, allocated_to_office = ?, vendor = ?, 
-//     vendor_email = ?, vendor_contact = ?, 
-//     warranty_expiry = ?, purchase_date = ?, purchase_cost = ?, 
-//     reason = ?, emp_email = ?
-//   WHERE asset_id = ?
-// `;
-
-// const values = [
-//   name,
-//   type,
-//   brand,
-//   model,
-//   status,
-//   allocated_to,
-//   allocated_to_office || null,  
-//   vendor,
-//   vendor_email,
-//   vendor_contact,
-//   warranty_expiry,
-//   purchase_date,
-//   purchase_cost,
-//   reason || null,
-//   emp_email,
-//   id
-// ];
-
-//     db.query(updateSql, values, (err, results) => {
-//       if (err) {
-//         console.error('Error updating asset:', err);
-//         return res.status(500).json({ success: false, message: 'Server error while updating asset' });
-//       }
-
-//       if (results.affectedRows === 0) {
-//         return res.status(404).json({ success: false, message: 'Asset not found' });
-//       }
-
-//       res.json({ success: true, message: 'Asset updated successfully' });
-//     });
-//   });
-// });
-
+// Enhanced asset update with activity logging and location support
 router.put('/assets/:id', async (req, res) => {
   const { id } = req.params;
   const {
@@ -1372,6 +1392,7 @@ router.put('/assets/:id', async (req, res) => {
     status,
     allocated_to,
     allocated_to_office,
+    location,
     vendor,
     vendor_email,
     vendor_contact,
@@ -1383,7 +1404,7 @@ router.put('/assets/:id', async (req, res) => {
   console.log('PUT /assets/:id - Request body:', req.body);
 
   try {
-    // First, verify the asset exists
+    // First, get the existing asset data
     const checkAssetSql = 'SELECT * FROM assets WHERE asset_id = ? OR id = ?';
     
     db.query(checkAssetSql, [id, id], (checkErr, checkResults) => {
@@ -1405,8 +1426,7 @@ router.put('/assets/:id', async (req, res) => {
 
       const existingAsset = checkResults[0];
       
-      // Handle employee email lookup if allocation exists
-      const handleUpdate = (emp_email = null) => {
+      const handleUpdate = async (emp_email = null, emp_name = null) => {
         const updateSql = `
           UPDATE assets SET 
             serial_no = ?,
@@ -1417,6 +1437,7 @@ router.put('/assets/:id', async (req, res) => {
             status = ?,
             allocated_to = ?,
             allocated_to_office = ?,
+            location = ?,
             vendor = ?,
             vendor_email = ?,
             vendor_contact = ?,
@@ -1436,30 +1457,25 @@ router.put('/assets/:id', async (req, res) => {
           status || existingAsset.status,
           allocated_to || existingAsset.allocated_to,
           allocated_to_office || existingAsset.allocated_to_office,
+          location || existingAsset.location,
           vendor || existingAsset.vendor,
           vendor_email || existingAsset.vendor_email,
           vendor_contact || existingAsset.vendor_contact,
           warranty_expiry || existingAsset.warranty_expiry,
           reason || existingAsset.reason,
           emp_email || existingAsset.emp_email,
-          id,  // For asset_id condition
-          id   // For id condition
+          id
         ];
 
-        console.log('Executing UPDATE with values:', values);
-
-        db.query(updateSql, values, (updateErr, updateResults) => {
+        db.query(updateSql, values, async (updateErr, updateResults) => {
           if (updateErr) {
             console.error('UPDATE query error:', updateErr);
             return res.status(500).json({ 
               success: false, 
               message: 'Database update failed',
-              error: updateErr.message,
-              sqlMessage: updateErr.sqlMessage 
+              error: updateErr.message
             });
           }
-
-          console.log('UPDATE results:', updateResults);
 
           if (updateResults.affectedRows === 0) {
             return res.status(404).json({ 
@@ -1468,47 +1484,53 @@ router.put('/assets/:id', async (req, res) => {
             });
           }
 
+          // Log asset update activity
+          try {
+            await logAssetUpdate(
+              {
+                asset_id: id,
+                status: status || existingAsset.status,
+                allocated_to: allocated_to || existingAsset.allocated_to,
+                allocated_to_office: allocated_to_office || existingAsset.allocated_to_office,
+                location: location || existingAsset.location
+              },
+              existingAsset,
+              emp_name ? {
+                employee_id: allocated_to,
+                email: emp_email,
+                name: emp_name
+              } : null
+            );
+          } catch (logError) {
+            console.error('Failed to log asset update:', logError);
+          }
+
           res.json({
             success: true,
             message: 'Asset updated successfully',
             data: {
               assetId: id,
-              affectedRows: updateResults.affectedRows,
-              changes: {
-                serial_number,
-                name,
-                type,
-                brand,
-                model,
-                status,
-                allocated_to,
-                allocated_to_office,
-                vendor,
-                vendor_email,
-                vendor_contact,
-                warranty_expiry,
-                reason
-              }
+              affectedRows: updateResults.affectedRows
             }
           });
         });
       };
 
-      // If allocating to an employee, get their email
+      // If allocating to an employee, get their details
       if (allocated_to && allocated_to.trim() !== '') {
-        const getEmployeeSql = 'SELECT email FROM users WHERE employee_id = ?';
+        const getEmployeeSql = 'SELECT email, name FROM users WHERE employee_id = ?';
         db.query(getEmployeeSql, [allocated_to], (empErr, empResults) => {
           if (empErr) {
             console.error('Employee lookup error:', empErr);
-            // Continue with null email
-            handleUpdate(null);
+            handleUpdate(null, null);
           } else {
             const emp_email = empResults.length > 0 ? empResults[0].email : null;
-            handleUpdate(emp_email);
+            const emp_name = empResults.length > 0 ? empResults[0].name : null;
+            handleUpdate(emp_email, emp_name);
           }
         });
       } else {
-        handleUpdate(null);
+        handleUpdate(null, null);
       }
     });
 
@@ -1522,32 +1544,9 @@ router.put('/assets/:id', async (req, res) => {
   }
 });
 
-
-
-// router.delete('/assets/:id', (req, res) => {
-//   const { id } = req.params;
-
-//   const sql = 'DELETE FROM assets WHERE asset_id = ?';
-
-//   db.query(sql, [id], (err, results) => {
-//     if (err) {
-//       console.error('Error deleting asset:', err);
-//       return res.status(500).json({ success: false, message: 'Server error' });
-//     }
-
-//     if (results.affectedRows === 0) {
-//       return res.status(404).json({ success: false, message: 'Asset not found' });
-//     }
-
-//     res.json({ success: true, message: 'Asset deleted successfully' });
-//   });
-// });
-
-
 router.delete('/assets/:id', (req, res) => {
   const { id } = req.params;
 
-  // Log input for debugging
   console.log(`Attempting to delete asset with asset_id = ${id}`);
 
   const sql = 'DELETE FROM assets WHERE asset_id = ?';
@@ -1565,8 +1564,6 @@ router.delete('/assets/:id', (req, res) => {
     res.json({ success: true, message: 'Asset deleted successfully' });
   });
 });
-
-
 
 router.get('/assets/filters/options', (req, res) => {
   const queries = [
@@ -2012,7 +2009,7 @@ router.get('/tickets/next-id', (req, res) => {
 router.get('/hr/tickets', (req, res) => {
   const { status, page = 1, limit = 20 } = req.query;
 
- let sql = `
+  let sql = `
     SELECT 
       mt.ticket_id,
       mt.asset_id,
@@ -2095,6 +2092,7 @@ router.get('/hr/tickets', (req, res) => {
     }
   });
 });
+
 // Serve uploaded files
 router.get('/uploads/:filename', (req, res) => {
   const filename = req.params.filename;
@@ -2107,6 +2105,7 @@ router.get('/uploads/:filename', (req, res) => {
     res.status(404).json({ success: false, message: 'File not found' });
   }
 });
+
 router.get('/hr/ticket-stats', (req, res) => {
   const statsSql = `
     SELECT 
@@ -2239,10 +2238,9 @@ router.put('/hr/tickets/:ticketId', async (req, res) => {
       });
     });
 
-    // 🔹 Process all log actions (ticket_conversations + activity_logs)
+    // Process all log actions
     for (const action of logActions) {
       try {
-        // Ticket conversation log
         await logTicketConversation(
           ticketId,
           action.type,
@@ -2251,37 +2249,6 @@ router.put('/hr/tickets/:ticketId', async (req, res) => {
           'HR Team',
           action.data
         );
-
-        // Activity log entry
-        const insertActivitySql = `
-          INSERT INTO activity_logs (
-            employee_email, employee_id, employee_name,
-            action_type, action_description,
-            asset_id, ticket_id,
-            performed_by, performed_by_name,
-            created_at, additional_data
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-
-        // const activityData = [
-        //   currentTicket.employee_email,
-        //   currentTicket.employee_id,
-        //   currentTicket.employee_name,
-        //   action.type,
-        //   action.description,
-        //   currentTicket.asset_id,
-        //   ticketId,
-        //   'HR',
-        //   'HR Team',
-        //   new Date(),
-        //   JSON.stringify(action.data || {})
-        // ];
-
-        db.query(insertActivitySql, activityData, (err2) => {
-          if (err2) {
-            console.error('Error inserting activity log:', err2);
-          }
-        });
       } catch (logError) {
         console.error('Error logging action:', action.type, logError);
       }
@@ -2305,8 +2272,7 @@ router.put('/hr/tickets/:ticketId', async (req, res) => {
   }
 });
 
-
-// ==================== ACTIVITY LOGS ====================
+// ==================== ENHANCED ACTIVITY LOGS WITH TYPE FILTERING ====================
 
 router.post("/activity-logs", async (req, res) => {
   try {
@@ -2327,6 +2293,7 @@ router.post("/activity-logs", async (req, res) => {
   }
 });
 
+// Updated activity logs endpoint with enhanced filtering
 router.get('/hr/activity-logs', (req, res) => {
   const { 
     employee_name, 
@@ -2335,7 +2302,8 @@ router.get('/hr/activity-logs', (req, res) => {
     end_date, 
     page = 1, 
     limit = 20,
-    group_by = 'employee' 
+    group_by = 'employee',
+    activity_type  // New parameter for filtering asset vs ticket activities
   } = req.query;
 
   let sql = `
@@ -2366,6 +2334,15 @@ router.get('/hr/activity-logs', (req, res) => {
   if (end_date) {
     sql += ` AND DATE(al.created_at) <= ?`;
     params.push(end_date);
+  }
+
+  // Filter by activity type
+  if (activity_type === 'asset') {
+    sql += ` AND al.asset_id IS NOT NULL AND al.ticket_id IS NULL`;
+    sql += ` AND al.action_type IN ('asset_allocated', 'asset_returned', 'asset_updated', 'asset_created')`;
+  } else if (activity_type === 'ticket') {
+    sql += ` AND al.ticket_id IS NOT NULL`;
+    sql += ` AND al.action_type IN ('ticket_created', 'ticket_updated', 'ticket_responded', 'hr_response', 'ticket_closed', 'evidence_uploaded', 'status_updated', 'information_request', 'ticket_assigned')`;
   }
 
   sql += ` ORDER BY al.created_at DESC`;
@@ -2477,8 +2454,6 @@ router.get('/employees/by-group', (req, res) => {
     res.json({ success: true, data: results });
   });
 });
-
-// Add these new routes to your existing router.js file
 
 // ==================== NEW EMPLOYEE TICKET APIS ====================
 
@@ -2675,6 +2650,7 @@ router.post('/employee/update-ticket', upload.array('files', 5), async (req, res
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
+
 
 // Get activity logs grouped by ticket for employee
 router.get('/employee/activity-logs-by-ticket', (req, res) => {
@@ -3126,6 +3102,131 @@ router.get('/employee/activity-logs/export', (req, res) => {
   });
 });
 
+// ==================== ADDITIONAL UTILITY ROUTES ====================
+
+// Get employee asset history
+router.get('/employee/asset-history', (req, res) => {
+  const { employee_email } = req.query;
+
+  if (!employee_email) {
+    return res.status(400).json({ success: false, message: 'Employee email is required' });
+  }
+
+  const sql = `
+    SELECT 
+      a.asset_id,
+      a.name as asset_name,
+      a.type,
+      a.brand,
+      a.model,
+      a.status,
+      a.allocated_to,
+      a.created_at as allocated_date,
+      al.created_at as activity_date,
+      al.action_type,
+      al.action_description
+    FROM assets a
+    LEFT JOIN activity_logs al ON a.asset_id = al.asset_id AND al.employee_email = ?
+    WHERE a.emp_email = ? OR al.employee_email = ?
+    ORDER BY al.created_at DESC
+  `;
+
+  db.query(sql, [employee_email, employee_email, employee_email], (err, results) => {
+    if (err) {
+      console.error('Error fetching employee asset history:', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+
+    res.json({ success: true, data: results });
+  });
+});
+
+// Get ticket analytics for HR dashboard
+router.get('/hr/ticket-analytics', (req, res) => {
+  const { start_date, end_date } = req.query;
+
+  let dateFilter = '';
+  let params = [];
+
+  if (start_date && end_date) {
+    dateFilter = 'WHERE mt.created_at BETWEEN ? AND ?';
+    params = [start_date, end_date];
+  }
+
+  const sql = `
+    SELECT 
+      COUNT(*) as total_tickets,
+      COUNT(CASE WHEN mt.status = 'Open' THEN 1 END) as open_tickets,
+      COUNT(CASE WHEN mt.status = 'Under Review' THEN 1 END) as under_review_tickets,
+      COUNT(CASE WHEN mt.status = 'Closed' THEN 1 END) as closed_tickets,
+      COUNT(CASE WHEN mt.status = 'Escalated' THEN 1 END) as escalated_tickets,
+      AVG(CASE WHEN mt.status = 'Closed' THEN DATEDIFF(mt.updated_at, mt.created_at) END) as avg_resolution_days,
+      COUNT(DISTINCT mt.reported_by) as unique_reporters,
+      COUNT(DISTINCT mt.asset_id) as assets_with_issues
+    FROM maintenance_tickets mt
+    ${dateFilter}
+  `;
+
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      console.error('Error fetching ticket analytics:', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+
+    res.json({ success: true, data: results[0] });
+  });
+});
+
+// Get asset allocation summary
+router.get('/hr/asset-summary', (req, res) => {
+  const sql = `
+    SELECT 
+      COUNT(*) as total_assets,
+      COUNT(CASE WHEN status = 'Available' THEN 1 END) as available_assets,
+      COUNT(CASE WHEN status = 'Allocated' THEN 1 END) as allocated_assets,
+      COUNT(CASE WHEN status = 'Maintenance' THEN 1 END) as maintenance_assets,
+      COUNT(CASE WHEN status = 'Retired' THEN 1 END) as retired_assets,
+      COUNT(CASE WHEN allocated_to IS NOT NULL THEN 1 END) as employee_allocated,
+      COUNT(CASE WHEN allocated_to_office = 'yes' THEN 1 END) as office_allocated,
+      COUNT(DISTINCT type) as asset_types,
+      COUNT(DISTINCT brand) as asset_brands
+    FROM assets
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Error fetching asset summary:', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+
+    res.json({ success: true, data: results[0] });
+  });
+});
+
+// Get recent activities for dashboard
+router.get('/hr/recent-activities', (req, res) => {
+  const { limit = 10 } = req.query;
+
+  const sql = `
+    SELECT 
+      al.*,
+      u.name as employee_display_name
+    FROM activity_logs al
+    LEFT JOIN users u ON al.employee_email = u.email
+    ORDER BY al.created_at DESC
+    LIMIT ?
+  `;
+
+  db.query(sql, [parseInt(limit)], (err, results) => {
+    if (err) {
+      console.error('Error fetching recent activities:', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+
+    res.json({ success: true, data: results });
+  });
+});
+
 // ==================== DATABASE CONNECTION TEST ====================
 router.get('/test-connection', (req, res) => {
   db.getConnection((err, connection) => {
@@ -3151,6 +3252,26 @@ router.get('/test-connection', (req, res) => {
         data: results 
       });
     });
+  });
+});
+
+// ==================== ERROR HANDLING MIDDLEWARE ====================
+router.use((err, req, res, next) => {
+  console.error('API Error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
+});
+
+// ==================== 404 HANDLER ====================
+router.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found',
+    path: req.originalUrl,
+    method: req.method
   });
 });
 
