@@ -34,13 +34,15 @@ const isProd = process.env.NODE_ENV === "production";
 
 // Load SSL certificate for MySQL
 const certPath = path.join(__dirname, "DigiCertGlobalRootCA.crt.pem");
-
+//testing 
 if (!fs.existsSync(certPath)) {
   console.error("❌ SSL certificate file not found at:", certPath);
   process.exit(1);
 } else {
   console.log("✅ SSL certificate loaded from:", certPath);
 }
+
+
 
 // MySQL connection config
 const dbConfig = {
